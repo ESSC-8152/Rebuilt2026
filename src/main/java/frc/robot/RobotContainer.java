@@ -47,15 +47,12 @@ public class RobotContainer {
 
     // Configure default commands
     m_robotDrive.setDefaultCommand(
-        // The left stick controls translation of the robot.
-        // Turning is controlled by the X axis of the right stick.
-        new RunCommand(
-            () -> m_robotDrive.conduire(
-                -MathUtil.applyDeadband(m_driverController.getLeftY(), OIConstants.kDriveDeadband)*0.1,
-                -MathUtil.applyDeadband(m_driverController.getLeftX(), OIConstants.kDriveDeadband)*0.1,
-                -MathUtil.applyDeadband(m_driverController.getRightX(), OIConstants.kDriveDeadband)*0.3,
-                true,
-                true),
+            new RunCommand(
+                () -> m_robotDrive.conduire(
+                    -MathUtil.applyDeadband(-m_driverController.getRawAxis(1) * 0.25, OIConstants.kDriveDeadband),
+                    -MathUtil.applyDeadband(-m_driverController.getRawAxis(0) * 0.25, OIConstants.kDriveDeadband),
+                    -MathUtil.applyDeadband(-m_driverController.getRawAxis(4) * 0.25, OIConstants.kDriveDeadband),
+                true, false),
             m_robotDrive));
   }
 
@@ -69,10 +66,7 @@ public class RobotContainer {
    * {@link JoystickButton}.
    */
   private void configureButtonBindings() {
-    new JoystickButton(m_driverController, Button.kR1.value)
-        .whileTrue(new RunCommand(
-            () -> m_robotDrive.setX(),
-            m_robotDrive));
+  
   }
 
   /**

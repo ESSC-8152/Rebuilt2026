@@ -6,8 +6,8 @@ package frc.robot.subsystems;
 
 import java.util.Optional;
 
-// import com.studica.frc.AHRS;
-// import com.studica.frc.AHRS.NavXComType;
+import com.studica.frc.AHRS;
+import com.studica.frc.AHRS.NavXComType;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.VecBuilder;
@@ -50,7 +50,7 @@ public class DriveSubsystem extends SubsystemBase {
     DriveConstants.kBackRightChassisAngularOffset);
 
 	// Le gyroscope
-	// private AHRS m_gyro = new AHRS(NavXComType.kMXP_SPI);
+	private AHRS m_gyro = new AHRS(NavXComType.kMXP_SPI);
 
 	// Initialisation PoseEstimator
 	SwerveDrivePoseEstimator poseEstimator = new SwerveDrivePoseEstimator(
@@ -146,6 +146,8 @@ public class DriveSubsystem extends SubsystemBase {
 				ChassisSpeeds.fromFieldRelativeSpeeds(xSpeedDelivered * invert, ySpeedDelivered * invert,
 				rotDelivered, getPose().getRotation())
 				: new ChassisSpeeds(xSpeedDelivered, ySpeedDelivered, rotDelivered);
+        
+        setModuleStates(DriveConstants.kDriveKinematics.toSwerveModuleStates(speeds));
 	}
 
 	public void stop() {
@@ -186,6 +188,10 @@ public class DriveSubsystem extends SubsystemBase {
 				pose);
 	}
 
+    public void setZeroPostion() {
+        resetOdometry(new Pose2d());
+    }
+
 	////////////// Encodeurs
 	// Pas besoin de méthode pour obtenir la position des encodeurs, tout ça
 	// passe directement par la pose2D du robot
@@ -198,17 +204,16 @@ public class DriveSubsystem extends SubsystemBase {
 
 	/////////////// GYRO
 	public double getAngle() {
-		// return -m_gyro.getYaw();
-        return 0;
+		return -m_gyro.getYaw();
 	}
 
-	// public double getRate() {
-	// 	return m_gyro.getRate();
-	// }
+	public double getRate() {
+		return m_gyro.getRate();
+	}
 
-	// public void resetGyro() {
-	// 	m_gyro.reset();
-	// }
+	public void resetGyro() {
+		m_gyro.reset();
+	}
 
 	/// ///////////// Path Planner
 	public ChassisSpeeds getChassisSpeeds() {
