@@ -49,9 +49,9 @@ public class RobotContainer {
     m_robotDrive.setDefaultCommand(
             new RunCommand(
                 () -> m_robotDrive.conduire(
-                    -MathUtil.applyDeadband(-m_driverController.getRawAxis(1) * 0.25, OIConstants.kDriveDeadband),
-                    -MathUtil.applyDeadband(-m_driverController.getRawAxis(0) * 0.25, OIConstants.kDriveDeadband),
-                    -MathUtil.applyDeadband(-m_driverController.getRawAxis(4) * 0.25, OIConstants.kDriveDeadband),
+                    -MathUtil.applyDeadband(m_driverController.getRawAxis(1) * DriveConstants.kVitesse, OIConstants.kDriveDeadband),
+                    -MathUtil.applyDeadband(m_driverController.getRawAxis(0) * DriveConstants.kVitesse, OIConstants.kDriveDeadband),
+                    -MathUtil.applyDeadband(-m_driverController.getRawAxis(4) * DriveConstants.kVitesseRotation, OIConstants.kDriveDeadband),
                 true, false),
             m_robotDrive));
   }
@@ -66,7 +66,17 @@ public class RobotContainer {
    * {@link JoystickButton}.
    */
   private void configureButtonBindings() {
-  
+    new JoystickButton(m_driverController, 8).onTrue(new Command() {
+      @Override
+      public void initialize() {
+        m_robotDrive.setZeroPostion();
+      }
+
+      @Override
+      public boolean isFinished() {
+        return true; // Command completes immediately after setting zero
+      }
+    });
   }
 
   /**
@@ -115,3 +125,4 @@ public class RobotContainer {
     return swerveControllerCommand.andThen(() -> m_robotDrive.conduire(0, 0, 0, false, false));
   }
 }
+

@@ -27,6 +27,9 @@ public final class Constants {
   public static final class DriveConstants {
     // Driving Parameters - Note that these are not the maximum capable speeds of
     // the robot, rather the allowed maximum speeds
+    public static final double kVitesse = 0.321467;
+    public static final double kVitesseRotation = 0.312467;
+
     public static final double kMaxSpeedMetersPerSecond = 4.8;
     public static final double kMaxAngularSpeed = 2 * Math.PI; // radians per second
 
@@ -52,15 +55,15 @@ public final class Constants {
     public static final double kBackRightChassisAngularOffset = Math.PI / 2;  //0.4225199
 
     // SPARK MAX CAN IDs
-    public static final int kFrontLeftDrivingCanId = 7;
+    public static final int kFrontLeftDrivingCanId = 3;
     public static final int kRearLeftDrivingCanId = 5;
     public static final int kFrontRightDrivingCanId = 1;
-    public static final int kRearRightDrivingCanId = 3;
+    public static final int kRearRightDrivingCanId = 7;
 
-    public static final int kFrontLeftTurningCanId = 8;
+    public static final int kFrontLeftTurningCanId = 4;
     public static final int kRearLeftTurningCanId = 6;
     public static final int kFrontRightTurningCanId = 2;
-    public static final int kRearRightTurningCanId = 4;
+    public static final int kRearRightTurningCanId = 8;
 
     public static final boolean kGyroReversed = true; // Passage de false a true le 26 fevrier
   }
@@ -128,9 +131,9 @@ public final class Constants {
     public static final double kMaxAngularSpeedRadiansPerSecond = Math.PI;
     public static final double kMaxAngularSpeedRadiansPerSecondSquared = Math.PI;
 
-    public static final double kPXController = 1;
-    public static final double kPYController = 1;
-    public static final double kPThetaController = 1;
+    public static final double kPXController = 1.0;
+    public static final double kPYController = 1.0;
+    public static final double kPThetaController = 1.0;
 
     // Constraint for the motion profiled robot angle controller
     public static final TrapezoidProfile.Constraints kThetaControllerConstraints = new TrapezoidProfile.Constraints(

@@ -23,8 +23,16 @@ import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.DriveConstants;
+import frc.robot.LimelightHelpers;
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+
 
 public class DriveSubsystem extends SubsystemBase {
 
@@ -70,6 +78,9 @@ public class DriveSubsystem extends SubsystemBase {
 		// resetGyro();
 		resetEncoders();
 		resetOdometry(new Pose2d());
+
+		Field2d field2d = new Field2d();
+
 	}
 
 	@Override
@@ -79,7 +90,7 @@ public class DriveSubsystem extends SubsystemBase {
 				Rotation2d.fromDegrees(getAngle()),
 				new SwerveModulePosition[] { avantGauche.getPosition(),
 						avantDroite.getPosition(), arriereGauche.getPosition(), arriereDroite.getPosition() });
-
+		
 		//SmartDashboard.putBoolean("redalliance", isRedAlliance());
 
 		SmartDashboard.putNumber("Angle Gyro", getAngle());
@@ -89,6 +100,13 @@ public class DriveSubsystem extends SubsystemBase {
 		SmartDashboard.putNumber(
 				"Pose Estimator Theta : ",
 				getPose().getRotation().getDegrees());
+
+		setLimelightRobotOrientation();
+		addVisionPosition("limelight");
+
+		// Mettre à jour le Field2d
+		field2d.setRobotPose(getPose());
+		SmartDashboard.putData("Field", field2d);
 	}
 
 	/// ////// MÉTHODE DONNANT DES CONSIGNES À CHAQUE MODULE
@@ -180,12 +198,56 @@ public class DriveSubsystem extends SubsystemBase {
 		return poseEstimator.getEstimatedPosition();
 	}
 
+	public void resetPose(Pose2d pose) {
+		resetOdometry(pose);
+	}
+
 	public void resetOdometry(Pose2d pose) {// pose est à la pose où reset, c'est typiquement l'origine du terrain
 		poseEstimator.resetPosition(
 				Rotation2d.fromDegrees(getAngle()),
 				new SwerveModulePosition[] { avantGauche.getPosition(),
 						avantDroite.getPosition(), arriereGauche.getPosition(), arriereDroite.getPosition() },
 				pose);
+	}
+
+	public void setLimelightRobotOrientation() {
+		LimelightHelpers.SetRobotOrientation(
+				"limelight",
+				poseEstimator.getEstimatedPosition().getRotation().getDegrees(),
+				0,
+				0,
+				0,
+				0,
+				0);
+	}
+
+	public void addVisionPosition(String nomComplet) {
+
+		// parametre limelight
+		poseEstimator.setVisionMeasurementStdDevs(VecBuilder.fill(
+				0.7,
+				0.7,
+				9999999));
+
+		LimelightHelpers.PoseEstimate poseEstimate = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
+				nomComplet);
+		boolean doRejectUpdate = false;
+		if (poseEstimate == null) {
+			return;
+		}
+
+		if (Math.abs(getRate()) > 720) {
+			doRejectUpdate = true;
+		}
+		if (poseEstimate.tagCount == 0) {
+			doRejectUpdate = true;
+		}
+		SmartDashboard.putBoolean(nomComplet, !doRejectUpdate);
+		if (!doRejectUpdate) {
+			poseEstimator.addVisionMeasurement(
+					poseEstimate.pose,
+					poseEstimate.timestampSeconds);
+		}
 	}
 
     public void setZeroPostion() {
@@ -216,7 +278,7 @@ public class DriveSubsystem extends SubsystemBase {
 	}
 
 	/// ///////////// Path Planner
-	public ChassisSpeeds getChassisSpeeds() {
+	public ChassisSpeeds getRobotRelativeSpeeds() {
 		return DriveConstants.kDriveKinematics.toChassisSpeeds(
 				avantDroite.getState(),
 				avantGauche.getState(),
