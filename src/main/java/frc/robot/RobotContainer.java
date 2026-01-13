@@ -18,6 +18,7 @@ import edu.wpi.first.wpilibj.PS4Controller.Button;
 import frc.robot.Constants.AutoConstants;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.Constants.OIConstants;
+import frc.robot.commands.MoveToPoseCommand;
 import frc.robot.subsystems.DriveSubsystem;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.RunCommand;
@@ -77,6 +78,9 @@ public class RobotContainer {
         return true; // Command completes immediately after setting zero
       }
     });
+
+    new JoystickButton(m_driverController, 1)
+    .onTrue(new MoveToPoseCommand(m_robotDrive, m_robotDrive.calculerPositionSouhaite()));
   }
 
   /**

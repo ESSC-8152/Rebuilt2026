@@ -12,8 +12,10 @@ import com.studica.frc.AHRS.NavXComType;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
+import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
@@ -22,16 +24,10 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.LimelightHelpers;
 import edu.wpi.first.math.controller.PIDController;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 
 public class DriveSubsystem extends SubsystemBase {
@@ -57,6 +53,13 @@ public class DriveSubsystem extends SubsystemBase {
     DriveConstants.kRearRightTurningCanId,
     DriveConstants.kBackRightChassisAngularOffset);
 
+	/** Vitesse max utilisée uniquement pour la conduite vers une pose (m/s) */
+	private final double kMaxPoseSpeedMetersPerSecond = 0.05; // <- valeur réduite (ajuste si besoin)
+
+	/** Limiteurs de pente pour lisser l'accélération en m/s² */
+	private final SlewRateLimiter m_vxLimiter = new SlewRateLimiter(0.01); // 3 m/s^2
+	private final SlewRateLimiter m_vyLimiter = new SlewRateLimiter(0.01);
+
 	// Le gyroscope
 	private AHRS m_gyro = new AHRS(NavXComType.kMXP_SPI);
 
@@ -71,16 +74,30 @@ public class DriveSubsystem extends SubsystemBase {
 
 	Field2d field2d = new Field2d();
 
+	// PID controllers pour conduite vers une pose
+	// NOTE: Ajuster ces gains pour ton robot
+	private final PIDController xController = new PIDController(1.5, 0.0, 0.0); // m/s per m
+	private final PIDController yController = new PIDController(1.5, 0.0, 0.0); // m/s per m
+	private final PIDController thetaController = new PIDController(3.0, 0.0, 0.0); // deg/s per deg
+
+	// tolérances
+	private final double positionToleranceMeters = 0.05; // 5 cm
+	private final double angleToleranceDegrees = 3.0; // 3 degrees
+
 
 	public DriveSubsystem() {
-
-		// // Reset initial
-		// resetGyro();
 		resetEncoders();
 		resetOdometry(new Pose2d());
 
-		Field2d field2d = new Field2d();
+		// theta controller travaille en degrés pour rester cohérent avec getAngle()
+		thetaController.enableContinuousInput(-180.0, 180.0);
+		// éventuellement setTolerance si tu veux utiliser atSetpoint()
+		xController.setTolerance(positionToleranceMeters);
+		yController.setTolerance(positionToleranceMeters);
+		thetaController.setTolerance(angleToleranceDegrees);
 
+		// s'assurer que field2d pointe sur l'instance
+		field2d = new Field2d();
 	}
 
 	@Override
@@ -90,16 +107,11 @@ public class DriveSubsystem extends SubsystemBase {
 				Rotation2d.fromDegrees(getAngle()),
 				new SwerveModulePosition[] { avantGauche.getPosition(),
 						avantDroite.getPosition(), arriereGauche.getPosition(), arriereDroite.getPosition() });
-		
-		//SmartDashboard.putBoolean("redalliance", isRedAlliance());
 
 		SmartDashboard.putNumber("Angle Gyro", getAngle());
-
 		SmartDashboard.putNumber("Pose Estimator X : ", getPose().getX());
 		SmartDashboard.putNumber("Pose Estimator Y : ", getPose().getY());
-		SmartDashboard.putNumber(
-				"Pose Estimator Theta : ",
-				getPose().getRotation().getDegrees());
+		SmartDashboard.putNumber("Pose Estimator Theta : ", getPose().getRotation().getDegrees());
 
 		setLimelightRobotOrientation();
 		addVisionPosition("limelight");
@@ -126,7 +138,69 @@ public class DriveSubsystem extends SubsystemBase {
 				avantDroite.getState(), arriereGauche.getState(),
 				arriereDroite.getState() };
 	}
+
+	public Pose2d calculerPositionSouhaite() {
+		return new Pose2d(new Translation2d(10.4,3.8), Rotation2d.fromDegrees(175));
+	}
+
+	public boolean isAtPose(Pose2d target) {
+		Pose2d current = getPose();
+		double dx = target.getX() - current.getX();
+		double dy = target.getY() - current.getY();
+		double distance = Math.hypot(dx, dy);
+		double angleError = MathUtil.inputModulus(target.getRotation().getDegrees() - current.getRotation().getDegrees(), -180.0, 180.0);
+		return distance < positionToleranceMeters && Math.abs(angleError) < angleToleranceDegrees;
+	}
 	
+	public void conduireToPose(Pose2d poseTarget) {
+		Pose2d current = getPose();
+	
+		// Calcul PID (calculate(measurement, setpoint))
+		double rawVx = xController.calculate(current.getX(), poseTarget.getX()); // m/s
+		double rawVy = yController.calculate(current.getY(), poseTarget.getY()); // m/s
+	
+		// Appliquer limite de vitesse spécifique pour la navigation vers une pose
+		rawVx = MathUtil.clamp(rawVx, -kMaxPoseSpeedMetersPerSecond, kMaxPoseSpeedMetersPerSecond);
+		rawVy = MathUtil.clamp(rawVy, -kMaxPoseSpeedMetersPerSecond, kMaxPoseSpeedMetersPerSecond);
+	
+		// Appliquer SlewRateLimiter pour lisser l'accélération
+		double vxField = m_vxLimiter.calculate(rawVx);
+		double vyField = m_vyLimiter.calculate(rawVy);
+	
+		// Contrôle angulaire (en degrés via thetaController), converti en rad/s
+		double currentDeg = current.getRotation().getDegrees();
+		double targetDeg = poseTarget.getRotation().getDegrees();
+		double omegaDegPerSec = thetaController.calculate(currentDeg, targetDeg);
+		double omegaRadPerSec = Units.degreesToRadians(MathUtil.clamp(omegaDegPerSec, -DriveConstants.kMaxAngularSpeed, DriveConstants.kMaxAngularSpeed));
+	
+		// Inversion selon l'alliance si nécessaire (comme ton code existant)
+		double invert = isRedAlliance() ? -1.0 : 1.0;
+		vxField *= invert;
+		vyField *= invert;
+	
+		// Création des vitesses chassis (field-relative)
+		ChassisSpeeds speeds = ChassisSpeeds.fromFieldRelativeSpeeds(vxField, vyField, omegaRadPerSec, current.getRotation());
+	
+		// Envoi aux modules
+		conduireChassis(speeds);
+	
+		// Arrêt quand on est dans la tolérance
+		boolean positionOK = Math.hypot(poseTarget.getX() - current.getX(), poseTarget.getY() - current.getY()) < positionToleranceMeters;
+		boolean angleOK = Math.abs(MathUtil.inputModulus(targetDeg - currentDeg, -180.0, 180.0)) < angleToleranceDegrees;
+		if (positionOK && angleOK) {
+			stop();
+			xController.reset();
+			yController.reset();
+			thetaController.reset();
+			m_vxLimiter.reset(0.0);
+			m_vyLimiter.reset(0.0);
+		}
+	
+		// Pour debug: afficher les commandes sur SmartDashboard
+		SmartDashboard.putNumber("conduireToPose_vxField", vxField);
+		SmartDashboard.putNumber("conduireToPose_vyField", vyField);
+		SmartDashboard.putNumber("conduireToPose_omegaRad", omegaRadPerSec);
+	}
 
 	public void conduire(
 			double xSpeed,
